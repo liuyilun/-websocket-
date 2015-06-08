@@ -1,0 +1,232 @@
+<!--
+
+    Copyright (c) 2014 Oracle and/or its affiliates. All rights reserved.
+
+    You may not modify, use, reproduce, or distribute this software except in
+    compliance with  the terms of the License at:
+    http://java.net/projects/javaeetutorial/pages/BerkeleyLicense
+
+-->
+<!DOCTYPE html>
+<html>
+<head>
+<title>WebsocketBot</title>
+<!-- <link rel="stylesheet" type="text/css" href="resources/css/default.css" /> -->
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="stylesheet" href="css/bootstrap.min.css" />
+<link rel="stylesheet" href="css/font-awesome.css" />
+<link rel="stylesheet" href="css/unicorn.css" />
+<link rel="stylesheet" href="css/jquery.gritter.css" />
+<link rel="stylesheet" href="css/jquery-ui.css" />
+
+<script type="text/javascript">
+	var wsocket; // Websocket connection
+	var userName; // User's name
+	var textarea; // Chat area
+	var wsconsole; // Websocket console area
+	var userlist; // User list area
+	/* Connect to the Websocket endpoint
+	 * Set a callback for incoming messages */
+	function connect() {
+		textarea = document.getElementById("textarea");
+		wsconsole = document.getElementById("wsconsole");
+		userlist = document.getElementById("userlist");
+		wsocket = new WebSocket("ws://localhost:8080/websocketbot/websocketbot");
+		wsocket.onmessage = onMessage;
+		document.getElementById("name").focus();
+		document.getElementById("consolediv").style.visibility = 'hidden';
+	}
+	/* Callback function for incoming messages
+	 * evt.data contains the message
+	 * Update the chat area, user's area and Websocket console */
+	function onMessage(evt) {
+		var line = "";
+		/* Parse the message into a JavaScript object */
+		var msg = JSON.parse(evt.data);
+		if (msg.type === "chat") {
+			line = msg.name + ": ";
+			if (msg.target.length > 0)
+				line += "@" + msg.target + " ";
+			line += msg.message + "\n";
+			/* Update the chat area */
+			textarea.value += "" + line;
+		} else if (msg.type === "info") {
+			line = "[--" + msg.info + "--]\n";
+			/* Update the chat area */
+			textarea.value += "" + line;
+		} else if (msg.type === "users") {
+			line = "Users:\n";
+			for (var i = 0; i < msg.userlist.length; i++)
+				line += "-" + msg.userlist[i] + "\n";
+			/* Update the user list area */
+			userlist.value = line;
+		}
+		textarea.scrollTop = 999999;
+		/* Update the Websocket console area */
+		wsconsole.value += "-> " + evt.data + "\n";
+		wsconsole.scrollTop = 999999;
+	}
+	/* Send a join message to the server */
+	function sendJoin() {
+		var input = document.getElementById("input");
+		var name = document.getElementById("name");
+		var join = document.getElementById("join");
+		var jsonstr;
+		if (name.value.length > 0) {
+			/* Create a message as a JavaScript object */
+			var joinMsg = {};
+			joinMsg.type = "join";
+			joinMsg.name = name.value;
+			/* Convert the message to JSON */
+			jsonstr = JSON.stringify(joinMsg);
+			/* Send the JSON text */
+			wsocket.send(jsonstr);
+			/* Disable join controls */
+			name.disabled = true;
+			join.disabled = true;
+			input.disabled = false;
+			userName = name.value;
+			/* Update the Websocket console area */
+			wsconsole.value += "<- " + jsonstr + "\n";
+			wsconsole.scrollTop = 999999;
+		}
+	}
+	/* Send a chat message to the server (press ENTER on the input area) */
+	function sendMessage(evt) {
+		var input = document.getElementById("input");
+		var jsonstr;
+		var msgstr;
+		if (evt.keyCode === 13 && input.value.length > 0) {
+			/* Create a chat message as a JavaScript object */
+			var chatMsg = {};
+			chatMsg.type = "chat";
+			chatMsg.name = userName;
+			msgstr = input.value;
+			chatMsg.target = getTarget(msgstr.replace(/,/g, ""));
+			chatMsg.message = cleanTarget(msgstr);
+			chatMsg.message = chatMsg.message.replace(/(\r\n|\n|\r)/gm, "");
+			/* Convert the object to JSON */
+			jsonstr = JSON.stringify(chatMsg);
+			/* Send the message as JSON text */
+			wsocket.send(jsonstr);
+			input.value = "";
+			/* Update the Websocket console area */
+			wsconsole.value += "<- " + jsonstr + "\n";
+			wsconsole.scrollTop = 999999;
+		}
+	}
+	/* Send a join message if the user presses ENTER in the name area */
+	function checkJoin(evt) {
+		var name = document.getElementById("name");
+		var input = document.getElementById("input");
+		if (evt.keyCode === 13 && name.value.length > 0) {
+			sendJoin();
+			input.focus();
+		}
+	}
+	/* Get the @User (target) for a message */
+	function getTarget(str) {
+		var arr = str.split(" ");
+		var target = "";
+		for (var i = 0; i < arr.length; i++) {
+			if (arr[i].charAt(0) === '@') {
+				target = arr[i].substring(1, arr[i].length);
+				target = target.replace(/(\r\n|\n|\r)/gm, "");
+			}
+		}
+		return target;
+	}
+	/* Remove the @User (target) from a message */
+	function cleanTarget(str) {
+		var arr = str.split(" ");
+		var cleanstr = "";
+		for (var i = 0; i < arr.length; i++) {
+			if (arr[i].charAt(0) !== '@')
+				cleanstr += arr[i] + " ";
+		}
+		return cleanstr.substring(0, cleanstr.length - 1);
+	}
+	/* Show or hide the WebSocket console */
+	function showHideConsole() {
+		var chkbox = document.getElementById("showhideconsole");
+		var consolediv = document.getElementById("consolediv");
+		if (chkbox.checked)
+			consolediv.style.visibility = 'visible';
+		else
+			consolediv.style.visibility = 'hidden';
+	}
+	/* Call connect() when the page first loads */
+	window.addEventListener("load", connect, false);
+</script>
+</head>
+<body data-color="grey" class="flat">
+	<!-- <h1>WebsocketBot</h1> -->
+
+	<div class="row">
+		<div class="col-xs-12">
+			<div class="alert alert-success">
+				weather QA<a href="#" class="close" data-dismiss="alert">×</a>
+			</div>
+			<div class="widget-box widget-chat">
+				<div class="widget-title">
+					<span class="icon"> 
+					<i class="fa fa-comment"></i>
+					</span>
+					<div class="btn btn-success btn-small">
+					<h5>天气智能问答系统</h5>
+					</div>
+					<div class="buttons">
+						<a class="btn go-full-screen"><i class="fa fa-resize-full"></i></a>
+					</div>
+				</div>
+				<div class="widget-content nopadding">
+					<div class="chat-content panel-left">
+						<div class="chat-messages" id="chat-messages">
+						Your name: <input id="name" type="text" size="20" maxlength="20"
+								onkeyup="checkJoin(event);" /> 
+						<input class="btn btn-success btn-small" type="submit" id="join" value="Join!" onclick="sendJoin();" /><br />
+						<!-- 	<textarea id="input" cols="70" rows="1" disabled
+								onkeyup="sendMessage(event);"></textarea>
+							<br /> -->
+						<textarea id="textarea" cols="140" rows="30" readonly></textarea>
+						</div>
+						<div class="chat-message well">  
+								<span class="input-box input-group">
+								<input placeholder="Enter message here..." type="text" class="form-control input-small" name="msg-box" id="input" onkeyup="sendMessage(event);"/>
+											<span class="input-group-btn">
+										        <button class="btn btn-success btn-small" type="button">Send</button>
+										    </span>
+								</span>									                  
+						</div>  	  
+					</div>                 
+					<div class="chat-users panel-right">
+							<div class="panel-title"><h5>Online Users</h5></div>
+							<div class="panel-content nopadding">
+								<textarea id="userlist" cols="30" rows="50" readonly></textarea>
+							</div>
+					</div>
+							<input id="showhideconsole" type="checkbox"
+								onclick="showHideConsole();" /> Show WebSocket console<br />
+							<div id="consolediv">
+								<textarea id="wsconsole" cols="80" rows="4" readonly
+									style="font-size: 8pt;"></textarea>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+	<div class="white-backdrop"></div>
+	<script src="js/jquery.min.js"></script>
+	<script src="js/jquery-ui.custom.js"></script>
+	<script src="js/bootstrap.min.js"></script>
+    <script src="js/bootbox.min.js"></script>
+    <script src="js/jquery.gritter.min.js"></script>
+    <script src="js/jquery.sparkline.min.js"></script>        
+    <script src="js/jquery.nicescroll.min.js"></script>
+    <script src="js/unicorn.js"></script>
+    <script src="js/unicorn.interface.js"></script>
+	<script src="js/jquery.nicescroll.min.js"></script>
+	<script src="js/unicorn.chat.js"></script>
+</body>
+</html>
